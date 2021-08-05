@@ -1,6 +1,7 @@
 Noisebridge Flaschen Taschen Project
 ====================================
 
+Hi, my fork adds a repetition parameter to the client/send-* examples.
 
 <a href="https://noisebridge.net/wiki/Flaschen_Taschen"><img src="img/flaschen-taschen-logo.png"></a>
 
