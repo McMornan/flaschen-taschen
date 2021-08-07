@@ -47,12 +47,13 @@ static int usage(const char *progname) {
             "\t-f <fontfile>   : Path to *.bdf font file\n"
             "\t-i <textfile>   : Optional: read text from file. '-' for stdin.\n"
             "\t-s<ms>          : Scroll milliseconds per pixel (default 60). 0 for no-scroll. Negative for opposite direction.\n"
-            "\t-O              : Only run once, don't scroll forever.\n"
+            "\t-O <repeat>     : number of repetitions (0=forever, > 2 = number of repetitions)\n"
             "\t-S<px>          : Letter spacing in pixels (default: 0)\n"
             "\t-c<RRGGBB>      : Text color as hex (default: FFFFFF)\n"
             "\t-b<RRGGBB>      : Background color as hex (default: 000000)\n"
             "\t-o<RRGGBB>      : Outline color as hex (default: no outline)\n"
             "\t-v              : Scroll text vertically \n"
+	    "\t-T <' delimited text> : Enter text on cmd line directly \n"
             );
 
     return 1;
@@ -66,12 +67,13 @@ int main(int argc, char *argv[]) {
     int off_z = 1;
     int scroll_delay_ms = 50;
     int letter_spacing = 0;
-    bool run_forever = true;
+    int run_forever = 0;
     bool vertical = false;
     bool with_outline = false;
     bool reverse = false;
     const char *host = NULL;
     std::string textfilename;
+    char * strText = NULL;
 
     Color fg(0xff, 0xff, 0xff);
     Color bg(0, 0, 0);
@@ -80,7 +82,7 @@ int main(int argc, char *argv[]) {
 
     ft::Font text_font;
     int opt;
-    while ((opt = getopt(argc, argv, "f:g:h:s:vo:c:b:l:OS:i:")) != -1) {
+    while ((opt = getopt(argc, argv, "f:g:h:s:vo:c:b:l:O:S:i:T:")) != -1) {
         switch (opt) {
         case 'g':
             if (sscanf(optarg, "%dx%d%d%d%d", &width, &height, &off_x, &off_y, &off_z)
@@ -101,7 +103,10 @@ int main(int argc, char *argv[]) {
             }
             break;
         case 'O':
-            run_forever = false;
+	    if(sscanf(optarg, "%d", &run_forever) != 1 || run_forever < 1) {
+                fprintf(stderr, "Repeat must be larger than 0 '%s'\n", optarg);
+                return usage(argv[0]);
+            };
             break;
         case 'S':
             letter_spacing = atoi(optarg);
@@ -151,6 +156,15 @@ int main(int argc, char *argv[]) {
         case 'v':
             vertical = true;
             break;
+	case 'T':
+	    //strText = new char(sizeof(optarg) + 1);
+	    strText = strdup( optarg);
+	    if( sizeof(strText) < 1) {
+	    	fprintf(stderr, "Text must not be empty (%s)\n", optarg);
+                return usage(argv[0]);
+	    }
+	    //fprintf(stderr, "Text: %s\n", strText);
+	    break;
 
         default:
             return usage(argv[0]);
@@ -195,17 +209,23 @@ int main(int argc, char *argv[]) {
     display.SetOffset(off_x, off_y, off_z);
 
     std::string str;
-    if (textfilename == "-") textfilename = "/dev/stdin";
-    if (!textfilename.empty()) {
-        int fd = open(textfilename.c_str(), O_RDONLY);
-        if (fd < 0) { perror("Opening textfile"); return 1; }
-        char buf[1024];
-        int r;
-        while ((r = read(fd, buf, sizeof(buf))) > 0) {
-            str.append(buf, r);
-        }
-        close(fd);
+    if( strText == NULL) {
+	    if (textfilename == "-") textfilename = "/dev/stdin";
+	    if (!textfilename.empty()) {
+	        int fd = open(textfilename.c_str(), O_RDONLY);
+	        if (fd < 0) { perror("Opening textfile"); return 1; }
+	        char buf[1024];
+	        int r;
+	        while ((r = read(fd, buf, sizeof(buf))) > 0) {
+        	    str.append(buf, r);
+	        }
+	        close(fd);
+	    }
+    } else {
+	std::string strCopy( (const char *)strText );
+	str = strCopy;
     }
+
     // Assemble all non-option arguments to one text.
     for (int i = optind; i < argc; ++i) {
         str.append(argv[i]).append(" ");
@@ -223,8 +243,7 @@ int main(int argc, char *argv[]) {
     }
 
     // Center in in the available display space.
-    const int y_pos = (height - measure_font->height()) / 2
-        + measure_font->baseline();
+    const int y_pos = measure_font->baseline();//(height - measure_font->height()) / 2
     const int x_pos = (width - measure_font->CharacterWidth(WIDEST_GLYPH)) / 2
         + (with_outline ? 1 : 0);
 
@@ -254,8 +273,12 @@ int main(int argc, char *argv[]) {
                              fg, NULL, text, letter_spacing);
                     display.Send();
                     usleep(scroll_delay_ms * 1000);
+                };
+                if( run_forever > 0) {
+                    run_forever--;
+                    if(run_forever == 0) got_ctrl_c = true;
                 }
-            } while (run_forever && !got_ctrl_c);
+            } while (!got_ctrl_c);
         }
         else {  // Vertical banner text
             // Dry run to determine total height.
@@ -279,8 +302,12 @@ int main(int argc, char *argv[]) {
                                      fg, NULL, text, letter_spacing);
                     display.Send();
                     usleep(scroll_delay_ms * 1000);
-                }
-            } while (run_forever && !got_ctrl_c);
+                };
+		if( run_forever > 0) {
+		    run_forever--;
+		    if(run_forever == 0) got_ctrl_c = true;
+		}
+            } while (!got_ctrl_c);
         }
     }
     // No scrolling, just show directly and once.
