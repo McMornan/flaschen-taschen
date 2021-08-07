@@ -4,7 +4,7 @@ Noisebridge Flaschen Taschen Project
 
 <a href="https://noisebridge.net/wiki/Flaschen_Taschen"><img src="img/flaschen-taschen-logo.png"></a>
 
-NOTICE: my version changes the send-text in the client directory. It is now possible to specify number of repetitions (-O) and to add the test to send directly on the commandlin (-T option)
+NOTICE: my version changes the send-text in the client directory. It is now possible to specify number of repetitions (-O) and to add the text to send directly on the commandline (-T option)
 
 Software and Raspberry Pi interface hardware for [FlaschenTaschen].
 
